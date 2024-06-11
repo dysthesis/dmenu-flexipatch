@@ -93,7 +93,7 @@ const
 char *colors[][2] = {
 	/*               fg         bg       */
 	[SchemeNorm] = { "#ffffff", "#000000" },
-	[SchemeSel]  = { "#ffffff", "#1e1e2e" },
+	[SchemeSel]  = { "#ffffff", "#0f0f0f" },
 	[SchemeOut]  = { "#000000", "#89b4fa" },
 	#if BORDER_PATCH
 	[SchemeBorder] = { "#000000", "#005577" },
@@ -102,11 +102,11 @@ char *colors[][2] = {
 	[SchemeMid]  = { "#eeeeee", "#f38ba8" },
 	#endif // MORECOLOR_PATCH
 	#if HIGHLIGHT_PATCH || FUZZYHIGHLIGHT_PATCH
-	[SchemeSelHighlight]  = { "#a6e3a1", "#1e1e2e" },
+	[SchemeSelHighlight]  = { "#a6e3a1", "#0f0f0f" },
 	[SchemeNormHighlight] = { "#a6e3a1", "#000000" },
 	#endif // HIGHLIGHT_PATCH | FUZZYHIGHLIGHT_PATCH
 	#if HIGHPRIORITY_PATCH
-	[SchemeHp]   = { "#ffffff", "#1e1e2e" },
+	[SchemeHp]   = { "#ffffff", "#0f0f0f" },
 	#endif // HIGHPRIORITY_PATCH
 	#if EMOJI_HIGHLIGHT_PATCH
 	[SchemeHover]  = { "#ffffff", "#353D4B" },
