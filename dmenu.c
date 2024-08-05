@@ -55,10 +55,10 @@ enum {
 	#if MORECOLOR_PATCH
 	SchemeMid,
 	#endif // MORECOLOR_PATCH
-	#if HIGHLIGHT_PATCH || FUZZYHIGHLIGHT_PATCH
+	#if HIGHLIGHT_PATCH
 	SchemeNormHighlight,
 	SchemeSelHighlight,
-	#endif // HIGHLIGHT_PATCH || FUZZYHIGHLIGHT_PATCH
+	#endif // HIGHLIGHT_PATCH
 	#if HIGHPRIORITY_PATCH
 	SchemeHp,
 	#endif // HIGHPRIORITY_PATCH
@@ -178,15 +178,6 @@ static Clr *scheme[SchemeLast];
 
 #include "config.h"
 
-#if CASEINSENSITIVE_PATCH
-static char * cistrstr(const char *s, const char *sub);
-static int (*fstrncmp)(const char *, const char *, size_t) = strncasecmp;
-static char *(*fstrstr)(const char *, const char *) = cistrstr;
-#else
-static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
-static char *(*fstrstr)(const char *, const char *) = strstr;
-#endif // CASEINSENSITIVE_PATCH
-
 static unsigned int
 textw_clamp(const char *str, unsigned int n)
 {
@@ -215,6 +206,14 @@ static void readstdin(void);
 static void run(void);
 static void setup(void);
 static void usage(void);
+
+#if CASEINSENSITIVE_PATCH
+static int (*fstrncmp)(const char *, const char *, size_t) = strncasecmp;
+static char *(*fstrstr)(const char *, const char *) = cistrstr;
+#else
+static int (*fstrncmp)(const char *, const char *, size_t) = strncmp;
+static char *(*fstrstr)(const char *, const char *) = strstr;
+#endif // CASEINSENSITIVE_PATCH
 
 #include "patch/include.c"
 
@@ -270,6 +269,9 @@ cleanup(void)
 	size_t i;
 
 	XUngrabKey(dpy, AnyKey, AnyModifier, root);
+	#if INPUTMETHOD_PATCH
+	XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
+	#endif // INPUTMETHOD_PATCH
 	for (i = 0; i < SchemeLast; i++)
 		free(scheme[i]);
 	for (i = 0; items && items[i].text; ++i)
@@ -330,11 +332,11 @@ drawitem(struct item *item, int x, int y, int w)
 			case 'p':
 				drw_setscheme(drw, scheme[SchemePurple]);
 				break;
-			#if HIGHLIGHT_PATCH || FUZZYHIGHLIGHT_PATCH
+			#if HIGHLIGHT_PATCH
 			case 'h':
 				drw_setscheme(drw, scheme[SchemeNormHighlight]);
 				break;
-			#endif // HIGHLIGHT_PATCH | FUZZYHIGHLIGHT_PATCH
+			#endif // HIGHLIGHT_PATCH
 			case 's':
 				drw_setscheme(drw, scheme[SchemeSel]);
 				break;
@@ -366,11 +368,11 @@ drawitem(struct item *item, int x, int y, int w)
 			case 'p':
 				drw_setscheme(drw, scheme[SchemePurple]);
 				break;
-			#if HIGHLIGHT_PATCH || FUZZYHIGHLIGHT_PATCH
+			#if HIGHLIGHT_PATCH
 			case 'h':
 				drw_setscheme(drw, scheme[SchemeNormHighlight]);
 				break;
-			#endif // HIGHLIGHT_PATCH | FUZZYHIGHLIGHT_PATCH
+			#endif // HIGHLIGHT_PATCH
 			case 's':
 				drw_setscheme(drw, scheme[SchemeSel]);
 				break;
@@ -471,13 +473,13 @@ drawitem(struct item *item, int x, int y, int w)
 		, True
 		#endif // PANGO_PATCH
 		);
-	#if HIGHLIGHT_PATCH || FUZZYHIGHLIGHT_PATCH
+	#if HIGHLIGHT_PATCH
 	#if EMOJI_HIGHLIGHT_PATCH
 	drawhighlights(item, output + iscomment, x + ((iscomment == 6) ? temppadding : 0), y, w);
 	#else
 	drawhighlights(item, x, y, w);
 	#endif // EMOJI_HIGHLIGHT_PATCH
-	#endif // HIGHLIGHT_PATCH | FUZZYHIGHLIGHT_PATCH
+	#endif // HIGHLIGHT_PATCH
 	return r;
 }
 
@@ -1383,7 +1385,7 @@ paste(void)
 
 #if ALPHA_PATCH
 static void
-xinitvisual()
+xinitvisual(void)
 {
 	XVisualInfo *infos;
 	XRenderPictFormat *fmt;
@@ -1506,7 +1508,6 @@ run(void)
 	#if PRESELECT_PATCH
 	int i;
 	#endif // PRESELECT_PATCH
-
 	while (!XNextEvent(dpy, &ev)) {
 		#if PRESELECT_PATCH
 		if (preselected) {
@@ -1520,13 +1521,25 @@ run(void)
 			preselected = 0;
 		}
 		#endif // PRESELECT_PATCH
+		#if INPUTMETHOD_PATCH
+		if (XFilterEvent(&ev, None))
+			continue;
+		if (composing)
+			continue;
+		#else
 		if (XFilterEvent(&ev, win))
 			continue;
+		#endif // INPUTMETHOD_PATCH
 		switch(ev.type) {
 		#if MOUSE_SUPPORT_PATCH
 		case ButtonPress:
 			buttonpress(&ev);
 			break;
+		#if MOTION_SUPPORT_PATCH
+		case MotionNotify:
+			motionevent(&ev.xbutton);
+			break;
+		#endif // MOTION_SUPPORT_PATCH
 		#endif // MOUSE_SUPPORT_PATCH
 		case DestroyNotify:
 			if (ev.xdestroywindow.window != win)
@@ -1749,6 +1762,9 @@ setup(void)
 	swa.event_mask = ExposureMask | KeyPressMask | VisibilityChangeMask
 		#if MOUSE_SUPPORT_PATCH
 		| ButtonPressMask
+		#if MOTION_SUPPORT_PATCH
+		| PointerMotionMask
+		#endif // MOTION_SUPPORT_PATCH
 		#endif // MOUSE_SUPPORT_PATCH
 	;
 	win = XCreateWindow(
@@ -1780,13 +1796,16 @@ setup(void)
 			(unsigned char *) &dock, 1);
 	#endif // WMTYPE_PATCH
 
-
 	/* input methods */
 	if ((xim = XOpenIM(dpy, NULL, NULL, NULL)) == NULL)
 		die("XOpenIM failed: could not open input device");
 
+	#if INPUTMETHOD_PATCH
+	init_input_method(xim);
+	#else
 	xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
 	                XNClientWindow, win, XNFocusWindow, win, NULL);
+	#endif // INPUTMETHOD_PATCH
 
 	#if MANAGED_PATCH
 	if (managed) {
@@ -1808,8 +1827,13 @@ setup(void)
 				XSelectInput(dpy, dws[i], FocusChangeMask);
 			XFree(dws);
 		}
+		#if !INPUTMETHOD_PATCH
 		grabfocus();
+		#endif // INPUTMETHOD_PATCH
 	}
+	#if INPUTMETHOD_PATCH
+	grabfocus();
+	#endif // INPUTMETHOD_PATCH
 	drw_resize(drw, mw, mh);
 	drawmenu();
 }
@@ -1904,9 +1928,9 @@ usage(void)
 		#if XYW_PATCH
 		" [-X xoffset] [-Y yoffset] [-W width]" // (arguments made upper case due to conflicts)
 		#endif // XYW_PATCH
-		#if HIGHLIGHT_PATCH || FUZZYHIGHLIGHT_PATCH
+		#if HIGHLIGHT_PATCH
 		"\n             [-nhb color] [-nhf color] [-shb color] [-shf color]" // highlight colors
-		#endif // HIGHLIGHT_PATCH | FUZZYHIGHLIGHT_PATCH
+		#endif // HIGHLIGHT_PATCH
 		#if SEPARATOR_PATCH
 		"\n             [-d separator] [-D separator]"
 		#endif // SEPARATOR_PATCH
@@ -1925,8 +1949,31 @@ main(int argc, char *argv[])
 	#if XRESOURCES_PATCH
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
+	#if INPUTMETHOD_PATCH
+	if (!XSetLocaleModifiers(""))
+		fputs("warning: could not set locale modifiers", stderr);
+	#endif // INPUTMETHOD_PATCH
 	if (!(dpy = XOpenDisplay(NULL)))
 		die("cannot open display");
+
+	/* These need to be checked before we init the visuals and read X resources. */
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "-v")) { /* prints version information */
+			puts("dmenu-"VERSION);
+			exit(0);
+		} else if (!strcmp(argv[i], "-w")) {
+			argv[i][0] = '\0';
+			embed = strdup(argv[++i]);
+		#if ALPHA_PATCH
+		} else if (!strcmp(argv[i], "-o")) {  /* opacity, pass -o 0 to disable alpha */
+			opacity = atoi(argv[++i]);
+		#endif // ALPHA_PATCH
+		} else {
+			continue;
+		}
+		argv[i][0] = '\0'; // mark as used
+	}
+
 	screen = DefaultScreen(dpy);
 	root = RootWindow(dpy, screen);
 	if (!embed || !(parentwin = strtol(embed, NULL, 0)))
@@ -1936,15 +1983,6 @@ main(int argc, char *argv[])
 		    parentwin);
 
 	#if ALPHA_PATCH
-	/* These need to be checked before we init the visuals. */
-	for (i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-o")) {  /* opacity, pass -o 0 to disable alpha */
-			opacity = atoi(argv[++i]);
-		} else {
-			continue;
-		}
-		argv[i][0] = '\0'; // mark as used
-	}
 	xinitvisual();
 	drw = drw_create(dpy, screen, root, wa.width, wa.height, visual, depth, cmap);
 	#else
@@ -2054,7 +2092,7 @@ main(int argc, char *argv[])
 		#endif // XYW_PATCH
 		else if (!strcmp(argv[i], "-m"))
 			mon = atoi(argv[++i]);
-		#if ALPHA_PATCH
+		#if ALPHA_PATCH && !XRESOURCES_PATCH
 		else if (!strcmp(argv[i], "-o"))  /* opacity, pass -o 0 to disable alpha */
 			opacity = atoi(argv[++i]);
 		#endif // ALPHA_PATCH
@@ -2088,7 +2126,7 @@ main(int argc, char *argv[])
 		else if (!strcmp(argv[i], "-hp"))
 			hpitems = tokenize(argv[++i], ",", &hplength);
  		#endif // HIGHPRIORITY_PATCH
-		#if HIGHLIGHT_PATCH || FUZZYHIGHLIGHT_PATCH
+		#if HIGHLIGHT_PATCH
 		else if (!strcmp(argv[i], "-nhb")) /* normal hi background color */
 			colors[SchemeNormHighlight][ColBg] = argv[++i];
 		else if (!strcmp(argv[i], "-nhf")) /* normal hi foreground color */
@@ -2097,13 +2135,15 @@ main(int argc, char *argv[])
 			colors[SchemeSelHighlight][ColBg] = argv[++i];
 		else if (!strcmp(argv[i], "-shf")) /* selected hi foreground color */
 			colors[SchemeSelHighlight][ColFg] = argv[++i];
-		#endif // HIGHLIGHT_PATCH | FUZZYHIGHLIGHT_PATCH
+		#endif // HIGHLIGHT_PATCH
 		#if CARET_WIDTH_PATCH
 		else if (!strcmp(argv[i], "-cw"))  /* sets caret witdth */
 			caret_width = atoi(argv[++i]);
 		#endif // CARET_WIDTH_PATCH
+		#if !XRESOURCES_PATCH
 		else if (!strcmp(argv[i], "-w"))   /* embedding window id */
 			embed = argv[++i];
+		#endif // XRESOURCES_PATCH
 		#if SEPARATOR_PATCH
 		else if (!strcmp(argv[i], "-d") || /* field separator */
 				(separator_greedy = !strcmp(argv[i], "-D"))) {
@@ -2145,6 +2185,10 @@ main(int argc, char *argv[])
 	#else // !XRESOURCES_PATCH
 	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fputs("warning: no locale support\n", stderr);
+	#if INPUTMETHOD_PATCH
+	if (!XSetLocaleModifiers(""))
+		fputs("warning: could not set locale modifiers", stderr);
+	#endif // INPUTMETHOD_PATCH
 	if (!(dpy = XOpenDisplay(NULL)))
 		die("cannot open display");
 	screen = DefaultScreen(dpy);

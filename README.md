@@ -1,5 +1,5 @@
-Similar to [dwm-flexipatch](https://github.com/bakkeby/dwm-flexipatch) this dmenu 5.3 (7be720c,
-2024-03-19) project has a different take on patching. It uses preprocessor directives to decide
+Similar to [dwm-flexipatch](https://github.com/bakkeby/dwm-flexipatch) this dmenu 5.3 (475d809,
+2024-07-14) project has a different take on patching. It uses preprocessor directives to decide
 whether or not to include a patch during build time. Essentially this means that this build, for
 better or worse, contains both the patched _and_ the original code. The aim being that you can
 select which patches to include and the build will contain that code and nothing more.
@@ -27,6 +27,10 @@ Browsing patches? There is a [map of patches](https://coggle.it/diagram/YjT2DD6j
 ---
 
 ### Changelog:
+
+2024-07-17 - Added the input method patch
+
+2024-07-16 - Added the mouse motion support patch
 
 2023-06-15 - Added the caret width patch
 
@@ -135,6 +139,9 @@ Browsing patches? There is a [map of patches](https://coggle.it/diagram/YjT2DD6j
 
    - [initialtext](https://tools.suckless.org/dmenu/patches/initialtext/)
       - adds an option to provide preselected text
+
+   - input-method
+      - adds support for input methods (fctix, ibus, etc.)
 
    - [instant](https://tools.suckless.org/dmenu/patches/instant/)
       - adds a flag that will cause dmenu to select an item immediately if there is only one
